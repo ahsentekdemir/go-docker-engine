@@ -88,7 +88,7 @@ func pullImage(w http.ResponseWriter, r *http.Request) {
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
-	if val, ok := params["containerID"]; ok {
+	if val, ok := params["image"]; ok {
 		image = val
 		if err != nil {
 			panic(err)
