@@ -53,14 +53,11 @@ func loggingContainer(w http.ResponseWriter, r *http.Request) {
 	options := types.ContainerLogsOptions{ShowStdout: true, Follow: true}
 	out, err := cli.ContainerLogs(ctx, containerID, options)
 	if err != nil {
-		panic(err)
+		w.Write([]byte(`{"message": "error"}`))
 	}
 
 	io.Copy(w, out)
 
-	if err != nil {
-		w.Write([]byte(`{"message": "error"}`))
-	}
 }
 
 func pullImage(w http.ResponseWriter, r *http.Request) {
