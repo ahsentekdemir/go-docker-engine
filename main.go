@@ -1,36 +1,66 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"strconv"
+	"os"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"github.com/gorilla/mux"
 )
 
-func get(w http.ResponseWriter, r *http.Request) {
+func runningDockerServices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message" : "get method called"}`))
+	ctx := context.Background()
+
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		w.Write([]byte(`{"message" : "error"}`))
+	}
+
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		w.Write([]byte(`{"message" : "error"}`))
+	}
+	c, err := json.Marshal(containers)
+	w.Write([]byte(fmt.Sprintf(`{"services" : %+q}`, c)))
+
 }
 
-func post(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(`{"message" : "post method called"}`))
-}
+func loggingContainer(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
 
-func put(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(`{"message": "put called"}`))
-}
-
-func delete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "delete called"}`))
+	containerID := " "
+	var err error
+	if val, ok := params["containerID"]; ok {
+		containerID = val
+
+	}
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		panic(err)
+	}
+
+	options := types.ContainerLogsOptions{ShowStdout: true}
+	out, err := cli.ContainerLogs(ctx, "00c7d0cf6591", options)
+	//fix it
+	io.Copy(os.Stdout, out)
+
+	c, err := json.Marshal(out)
+
+	if err != nil {
+		w.Write([]byte(`{"message": "error"}`))
+	}
+	w.Write([]byte(fmt.Sprintf(`{"data" : %+q, "" : %v}`, c, containerID)))
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
@@ -39,44 +69,11 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"message": "not found"}`))
 }
 
-func params(w http.ResponseWriter, r *http.Request) {
-	pathParams := mux.Vars(r)
-	w.Header().Set("Content-Type", "application/json")
-
-	userID := -1
-	var err error
-	if val, ok := pathParams["userID"]; ok {
-		userID, err = strconv.Atoi(val)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"message" : "need a num}`))
-			return
-		}
-	}
-
-	commentID := -1
-	if val, ok := pathParams["commentID"]; ok {
-		commentID, err = strconv.Atoi(val)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"message" : "need a num"}`))
-			return
-		}
-	}
-
-	query := r.URL.Query()
-	location := query.Get("location")
-	w.Write([]byte(fmt.Sprintf(`{"userID" : %d, "commentID" : %d, "location" : %s}`, userID, commentID, location)))
-}
-
 func main() {
 	r := mux.NewRouter()
 	api := r.PathPrefix("/api/v1").Subrouter()
-	api.HandleFunc("/", get).Methods(http.MethodGet)
-	api.HandleFunc("/", post).Methods(http.MethodPost)
-	api.HandleFunc("/", put).Methods(http.MethodPut)
-	api.HandleFunc("/", delete).Methods(http.MethodDelete)
-	api.HandleFunc("/user/{userID}/comment/{commentID}", params).Methods(http.MethodGet)
+	api.HandleFunc("/docker-services", runningDockerServices).Methods(http.MethodGet)
+	api.HandleFunc("/log/{containerID}", loggingContainer).Methods(http.MethodGet)
 	api.HandleFunc("/", notFound)
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(":3131", r))
 }
