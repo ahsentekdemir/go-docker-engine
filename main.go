@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -56,14 +55,12 @@ func loggingContainer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	dst := os.Stdout
 
 	io.Copy(w, out)
 
 	if err != nil {
 		w.Write([]byte(`{"message": "error"}`))
 	}
-	w.Write([]byte(fmt.Sprintf(`{"data" : %+q, "containerId" : %v}`, dst, containerID)))
 }
 
 func pullImage(w http.ResponseWriter, r *http.Request) {
