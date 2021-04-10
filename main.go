@@ -53,7 +53,6 @@ func loggingContainer(w http.ResponseWriter, r *http.Request) {
 
 	options := types.ContainerLogsOptions{ShowStdout: true, Follow: true}
 	out, err := cli.ContainerLogs(ctx, containerID, options)
-	//fix it
 	if err != nil {
 		panic(err)
 	}
