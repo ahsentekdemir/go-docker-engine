@@ -101,6 +101,37 @@ func pullImage(w http.ResponseWriter, r *http.Request) {
 
 }
 
+
+func stopRunning(w http.ResponseWriter, r *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
+	}
+
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"}`)))
+	}
+
+	for _, container := range containers {
+		c, err := json.Marshal(container.ID[:10])
+		w.Write([]byte(fmt.Sprintf(`{"Stopping container" : %+q},`, c)))
+		if err != nil{
+			w.Write([]byte(fmt.Sprintf(`{"message": "error"},`)))
+		}
+		
+		if err := cli.ContainerStop(ctx, container.ID, nil); err != nil {
+			w.Write([]byte(fmt.Sprintf(`{"message": "error"},`)))
+		}
+		w.Write([]byte(fmt.Sprintf(`{"message": "success"},`)))
+	}
+	
+}
+
 func notFound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
@@ -113,6 +144,7 @@ func main() {
 	api.HandleFunc("/docker-services", runningDockerServices).Methods(http.MethodGet)
 	api.HandleFunc("/pull-image/{image}", pullImage).Methods(http.MethodGet)
 	api.HandleFunc("/log/{containerID}", loggingContainer).Methods(http.MethodGet)
+	api.HandleFunc("/containers/stop", stopRunning).Methods(http.MethodGet)
 	api.HandleFunc("/", notFound)
 	log.Fatal(http.ListenAndServe(":3131", r))
 }
