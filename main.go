@@ -14,22 +14,22 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func runningDockerServices(w http.ResponseWriter, r *http.Request) {
+func containerList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	ctx := context.Background()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		w.Write([]byte(`{"message" : "error"}`))
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
 	}
 
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
-		w.Write([]byte(`{"message" : "error"}`))
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
 	}
 	c, err := json.Marshal(containers)
-	w.Write([]byte(fmt.Sprintf(`{"services" : %+q}`, c)))
+	w.Write([]byte(fmt.Sprintf(`{"services" : %+q},`, c)))
 
 }
 
@@ -53,7 +53,7 @@ func loggingContainer(w http.ResponseWriter, r *http.Request) {
 	options := types.ContainerLogsOptions{ShowStdout: true, Follow: true}
 	out, err := cli.ContainerLogs(ctx, containerID, options)
 	if err != nil {
-		w.Write([]byte(`{"message": "error"}`))
+		w.Write([]byte(fmt.Sprintf(`{"message": "error"},`)))
 	}
 
 	io.Copy(w, out)
@@ -93,7 +93,7 @@ func pullImage(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	w.Write([]byte(fmt.Sprintf(`{"message" : "%s pulled.." }`, image)))
+	w.Write([]byte(fmt.Sprintf(`{"message" : "%s pulled.." },`, image)))
 
 	defer out.Close()
 
@@ -128,8 +128,32 @@ func stopRunning(w http.ResponseWriter, r *http.Request){
 			w.Write([]byte(fmt.Sprintf(`{"message": "error"},`)))
 		}
 		w.Write([]byte(fmt.Sprintf(`{"message": "success"},`)))
+	}	
+}
+
+func listImages(w http.ResponseWriter, r *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
 	}
-	
+
+	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	if err != nil {
+		w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
+	}
+
+	for _, image := range images {
+		c, err := json.Marshal(image.ID)
+		w.Write([]byte(fmt.Sprintf(`{"Image" : +%q},`, c)))
+		if err != nil{
+			w.Write([]byte(fmt.Sprintf(`{"message" : "error"},`)))
+		}
+	}
+
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
@@ -141,10 +165,12 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 func main() {
 	r := mux.NewRouter()
 	api := r.PathPrefix("/api/v1").Subrouter()
-	api.HandleFunc("/docker-services", runningDockerServices).Methods(http.MethodGet)
-	api.HandleFunc("/pull-image/{image}", pullImage).Methods(http.MethodGet)
-	api.HandleFunc("/log/{containerID}", loggingContainer).Methods(http.MethodGet)
-	api.HandleFunc("/containers/stop", stopRunning).Methods(http.MethodGet)
+	api.HandleFunc("/container/list", containerList).Methods(http.MethodGet)
+	api.HandleFunc("/container/log/{containerID}", loggingContainer).Methods(http.MethodGet)
+	api.HandleFunc("/container/stop-all", stopRunning).Methods(http.MethodGet)
+	api.HandleFunc("/image/pull/{image}", pullImage).Methods(http.MethodGet)
+	api.HandleFunc("/image/list", listImages).Methods(http.MethodGet)
+
 	api.HandleFunc("/", notFound)
 	log.Fatal(http.ListenAndServe(":3131", r))
 }
