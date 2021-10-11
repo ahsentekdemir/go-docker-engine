@@ -170,5 +170,5 @@ func main() {
 	api.HandleFunc("/image/list", listImages).Methods(http.MethodGet)
 
 	api.HandleFunc("/", notFound)
-	log.Fatal(http.ListenAndServe(":3131", r))
+	log.Fatal(http.ListenAndServe(":5000", r))
 }
