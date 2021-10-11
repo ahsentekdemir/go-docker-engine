@@ -97,8 +97,6 @@ func pullImage(w http.ResponseWriter, r *http.Request) {
 
 	defer out.Close()
 
-	//io.Copy(w, out)
-
 }
 
 
